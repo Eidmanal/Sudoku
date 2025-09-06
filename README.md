@@ -1,7 +1,15 @@
 Multiplayer Sudoku
 
 A real-time, competitive multiplayer Sudoku game where players race to solve the puzzle first. Features include a live scoreboard, an elimination system for mistakes, and an abandonment timer for disconnected players.
-<img width="1338" height="639" alt="image" src="https://github.com/user-attachments/assets/181850e4-158f-48d9-be13-6462bde83413" />
+
+Desktop view:
+
+<img width="1345" height="628" alt="image" src="https://github.com/user-attachments/assets/22dcb402-9dc8-45de-9555-8934bd8b029e" />
+
+Mobile view:
+
+![Screenshot_20250907_014905_Chrome](https://github.com/user-attachments/assets/bd794e71-3da6-417d-86f8-8b02d3690b9e)
+
 
 Features:
 
@@ -14,6 +22,8 @@ Elimination System: Make 3 mistakes and you're out. The last player standing can
 Abandonment Timer: Players who disconnect have a limited time to rejoin before being disqualified.
 
 Match Timer: See how long the current match has been running.
+
+Note Marking: To indicate possible values that may occupy a cell.
 
 Responsive UI: Playable on both desktop and mobile devices.
 
