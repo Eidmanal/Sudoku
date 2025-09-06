@@ -17,13 +17,16 @@ let currentSolution = null;
 let gameStartTime = null;
 let gameTickInterval = null;
 let currentDifficulty = 'medium';
+let currentLives = 3; // NEW
 let maxPoints = 0; 
 
 const DISCONNECT_TIMEOUT = 60;
 
-function startGame(difficulty) {
+// --- Game Logic ---
+function startGame(difficulty, lives) { // NEW
     isGameActive = true;
     currentDifficulty = difficulty;
+    currentLives = lives; // NEW
     const { puzzle, solution } = newPuzzle(difficulty);
     currentSolution = solution;
     gameStartTime = Date.now();
@@ -32,12 +35,14 @@ function startGame(difficulty) {
     Object.values(players).forEach(p => {
         p.board = puzzle.map(row => row.slice());
         p.mistakes = 0;
+        p.maxMistakes = lives; // NEW
         p.solved = false;
         p.isEliminated = false;
         p.isDisqualified = false;
         p.points = 0;
         p.disconnectTimeLeft = null;
-        p.isReady = false; // Reset ready status on new game
+        p.isReady = false;
+        p.votedToAbort = false;
     });
     io.emit('puzzle', puzzle);
     if (gameTickInterval) clearInterval(gameTickInterval);
@@ -60,7 +65,8 @@ function resetLobby() {
         p.points = 0;
         p.board = null;
         p.disconnectTimeLeft = null;
-        p.isReady = false; // Reset ready status
+        p.isReady = false;
+        p.votedToAbort = false;
     });
     updateLobbyState();
 }
@@ -71,18 +77,10 @@ function checkEliminationWin() {
     if (activePlayers.length === 1 && Object.keys(players).length > 1) {
         const winner = activePlayers[0];
         winner.solved = true;
-        io.emit('gameOver', {
-            winnerId: winner.id,
-            winnerName: winner.name,
-            reason: 'as the last player standing!'
-        });
+        io.emit('gameOver', { winnerId: winner.id, winnerName: winner.name, reason: 'as the last player standing!' });
         resetLobby();
     } else if (activePlayers.length === 0 && Object.keys(players).length > 0) {
-        io.emit('gameOver', {
-            winnerId: null,
-            winnerName: 'Nobody',
-            reason: 'All players were eliminated!'
-        });
+        io.emit('gameOver', { winnerId: null, winnerName: 'Nobody', reason: 'All players were eliminated!' });
         resetLobby();
     }
 }
@@ -90,7 +88,6 @@ function checkEliminationWin() {
 function gameTick() {
     if (!isGameActive) {
         clearInterval(gameTickInterval);
-        gameTickInterval = null;
         return;
     }
     const elapsedSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
@@ -110,19 +107,15 @@ function gameTick() {
 
 function updateLobbyState() {
     const scores = Object.values(players).map(p => ({
-        id: p.id,
-        name: p.name,
-        points: p.points,
-        mistakes: p.mistakes,
-        solved: p.solved,
-        isEliminated: p.isEliminated,
-        isDisqualified: p.isDisqualified,
-        isConnected: p.connectionCount > 0,
-        disconnectTimeLeft: p.disconnectTimeLeft,
-        isReady: p.isReady, // NEW: Send ready status to clients
+        id: p.id, name: p.name, points: p.points,
+        mistakes: p.mistakes, maxMistakes: p.maxMistakes, // NEW
+        solved: p.solved, isEliminated: p.isEliminated,
+        isDisqualified: p.isDisqualified, isConnected: p.connectionCount > 0,
+        disconnectTimeLeft: p.disconnectTimeLeft, isReady: p.isReady,
+        votedToAbort: p.votedToAbort,
     }));
     io.emit('scoreboard', scores);
-    io.emit('gameState', { isGameActive, difficulty: currentDifficulty, maxPoints });
+    io.emit('gameState', { isGameActive, difficulty: currentDifficulty, lives: currentLives, maxPoints }); // NEW
 }
 
 // --- Socket.IO ---
@@ -133,27 +126,16 @@ io.on('connection', socket => {
         if (!id || !players[id]) {
             id = uuidv4();
             players[id] = {
-                id,
-                name: 'Anonymous',
-                board: null,
-                mistakes: 0,
-                points: 0,
-                solved: false,
-                isEliminated: false,
-                isDisqualified: false,
-                connectionCount: 0,
-                disconnectTimeLeft: null,
-                isReady: false, // NEW: Default ready status
+                id, name: 'Anonymous', board: null, mistakes: 0, maxMistakes: 3, // NEW
+                points: 0, solved: false, isEliminated: false, isDisqualified: false,
+                connectionCount: 0, disconnectTimeLeft: null, isReady: false, votedToAbort: false,
             };
             isNewPlayer = true;
         }
-        
         players[id].connectionCount++;
         players[id].disconnectTimeLeft = null;
         socketToPlayerId[socket.id] = id;
-        
         socket.emit('sessionCreated', { id, isNew: isNewPlayer });
-        
         if (isGameActive && players[id].board) {
             socket.emit('puzzle', players[id].board);
         }
@@ -168,7 +150,6 @@ io.on('connection', socket => {
         }
     });
 
-    // NEW: Handle player ready status toggle
     socket.on('toggleReady', () => {
         const id = socketToPlayerId[socket.id];
         if (id && players[id] && !isGameActive) {
@@ -176,18 +157,29 @@ io.on('connection', socket => {
             updateLobbyState();
         }
     });
+    
+    socket.on('voteToAbort', () => {
+        const id = socketToPlayerId[socket.id];
+        if (id && players[id] && isGameActive) {
+            players[id].votedToAbort = true;
+            const onlinePlayers = Object.values(players).filter(p => p.connectionCount > 0);
+            const allVoted = onlinePlayers.every(p => p.votedToAbort);
+            if (allVoted) {
+                io.emit('gameAbortedByVote');
+                resetLobby();
+            } else {
+                updateLobbyState();
+            }
+        }
+    });
 
-    socket.on('startGame', ({ difficulty }) => {
+    socket.on('startGame', ({ difficulty, lives }) => { // NEW
         if (isGameActive) return;
-
-        // NEW: Check if all connected players are ready
         const onlinePlayers = Object.values(players).filter(p => p.connectionCount > 0);
         const allReady = onlinePlayers.every(p => p.isReady);
-
         if (allReady && onlinePlayers.length > 0) {
-            startGame(difficulty);
+            startGame(difficulty, lives); // NEW
         } else {
-            // Send a message back to the player who tried to start the game
             socket.emit('notAllPlayersReady');
         }
     });
@@ -202,11 +194,7 @@ io.on('connection', socket => {
             socket.emit('moveSuccess', { row, col, value });
             if (player.points >= maxPoints) {
                 player.solved = true;
-                io.emit('gameOver', {
-                    winnerId: player.id,
-                    winnerName: player.name,
-                    reason: 'solved the puzzle first!'
-                });
+                io.emit('gameOver', { winnerId: player.id, winnerName: player.name, reason: 'solved the puzzle first!' });
                 resetLobby();
             } else {
                  updateLobbyState();
@@ -214,8 +202,8 @@ io.on('connection', socket => {
         } else {
             player.mistakes++;
             socket.emit('moveFail', { row, col });
-            socket.emit('mistake', { mistakes: player.mistakes });
-            if (player.mistakes >= 3) {
+            socket.emit('mistake', { mistakes: player.mistakes, maxMistakes: player.maxMistakes }); // NEW
+            if (player.mistakes >= player.maxMistakes) { // NEW
                 player.isEliminated = true;
                 socket.emit('eliminated');
                 checkEliminationWin();
@@ -232,8 +220,13 @@ io.on('connection', socket => {
                 players[id].connectionCount = 0;
                 if (isGameActive) {
                     players[id].disconnectTimeLeft = DISCONNECT_TIMEOUT;
+                    const onlinePlayers = Object.values(players).filter(p => p.connectionCount > 0);
+                    const allVoted = onlinePlayers.every(p => p.votedToAbort);
+                    if(allVoted && onlinePlayers.length > 0) {
+                        io.emit('gameAbortedByVote');
+                        resetLobby();
+                    }
                 } else {
-                    // If a player disconnects from the lobby, they are no longer ready
                     players[id].isReady = false;
                 }
             }

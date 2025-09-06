@@ -1,19 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
   const socket = io();
 
+  // Controls
+  const startBtn = document.getElementById('startGame');
+  const difficultySelect = document.getElementById('difficulty');
+  const difficultyControl = document.getElementById('difficulty-control');
+  const livesSelect = document.getElementById('lives-select');
+  const livesControl = document.getElementById('lives-control');
+  const renameBtn = document.getElementById('renameBtn');
+  const readyBtn = document.getElementById('readyBtn');
+  const abortBtn = document.getElementById('abortBtn');
+  const notesToggleBtn = document.getElementById('notes-toggle');
+  const mobileNotesBtn = document.getElementById('mobile-notes-btn');
+  const mobileClearBtn = document.getElementById('mobile-clear-btn');
+  
   // Game Elements
   const table = document.getElementById('sudoku');
   const scoreboard = document.getElementById('scoreboard');
   const gameTimer = document.getElementById('game-timer'); 
-  
-  // Controls
-  const startBtn = document.getElementById('startGame');
-  const difficultySelect = document.getElementById('difficulty');
-  const renameBtn = document.getElementById('renameBtn');
-  const notesToggleBtn = document.getElementById('notes-toggle');
-  const mobileNotesBtn = document.getElementById('mobile-notes-btn');
-  const mobileClearBtn = document.getElementById('mobile-clear-btn');
-  const readyBtn = document.getElementById('readyBtn');
 
   // Collapsible Section Elements
   const collapseButton = document.getElementById('collapse-button');
@@ -31,9 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Mobile Menu Elements
   const menuBtn = document.getElementById('menu-btn');
-  const menuCloseBtn = document.getElementById('menu-close-btn'); // NEW
+  const menuCloseBtn = document.getElementById('menu-close-btn');
   const settingsPanel = document.getElementById('settings-panel');
-  const overlay = document.getElementById('overlay'); // NEW
+  const overlay = document.getElementById('overlay');
+  const menuNotificationDot = document.getElementById('menu-notification-dot');
 
   let myId = ''; 
   let isNotesMode = false;
@@ -41,11 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedCell = null;
   let isGameCurrentlyActive = false;
   let currentMaxPoints = 0;
+  let seenVoteCount = 0;
+  let lastScores = []; // To hold the latest scoreboard data for various functions
 
   // --- Mobile Menu Logic ---
   function openMenu() {
     settingsPanel.classList.add('open');
     overlay.classList.remove('hidden');
+    // FIX: Correctly update seen vote count using the last known scores
+    seenVoteCount = lastScores.filter(s => s.votedToAbort && s.isConnected).length;
+    menuNotificationDot.classList.add('hidden');
   }
   function closeMenu() {
     settingsPanel.classList.remove('open');
@@ -106,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!cell || !cell.classList.contains('editable')) return; 
     const i = parseInt(cell.dataset.row, 10);
     const j = parseInt(cell.dataset.col, 10);
-
     if (isNotesMode) {
         const notes = myNotes[i][j];
         if (notes.has(value)) { notes.delete(value); } 
@@ -144,33 +153,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  socket.on('gameState', ({ isGameActive, difficulty, maxPoints }) => {
+  socket.on('gameState', ({ isGameActive, difficulty, lives, maxPoints }) => {
     isGameCurrentlyActive = isGameActive;
     currentMaxPoints = maxPoints;
-
-    const hoverClasses = ['hover:bg-blue-600', 'hover:bg-green-600'];
+    const lobbyControls = [renameBtn, readyBtn, startBtn, difficultyControl, livesControl];
+    const gameControls = [abortBtn];
     if (isGameActive) {
-      startBtn.disabled = true;
-      startBtn.textContent = 'Game in Progress...';
-      startBtn.classList.add('bg-gray-500', 'cursor-not-allowed');
-      startBtn.classList.remove('bg-blue-500', ...hoverClasses.filter(c => c.includes('blue')));
-      renameBtn.disabled = true;
-      renameBtn.classList.add('opacity-50', 'cursor-not-allowed');
-      renameBtn.classList.remove(...hoverClasses.filter(c => c.includes('green')));
+      lobbyControls.forEach(el => el.classList.add('hidden'));
+      gameControls.forEach(el => el.classList.remove('hidden'));
+      // FIX: Only update settings when game is active
       difficultySelect.value = difficulty;
-      difficultySelect.disabled = true;
-      readyBtn.classList.add('hidden');
+      livesSelect.value = lives;
     } else {
-      startBtn.disabled = false;
-      startBtn.textContent = 'Start Game';
-      startBtn.classList.remove('bg-gray-500', 'cursor-not-allowed');
-      startBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
-      renameBtn.disabled = false;
-      renameBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      renameBtn.classList.add('hover:bg-gray-500');
-      difficultySelect.disabled = false;
-      gameTimer.textContent = ''; 
-      readyBtn.classList.remove('hidden');
+      lobbyControls.forEach(el => el.classList.remove('hidden'));
+      gameControls.forEach(el => el.classList.add('hidden'));
+      gameTimer.textContent = '';
+      menuNotificationDot.classList.add('hidden');
+      seenVoteCount = 0;
     }
   });
   
@@ -183,6 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on('notAllPlayersReady', () => {
     showPopup('Game Not Started', 'Cannot start the game because some players are not ready.');
   });
+  
+  socket.on('gameAbortedByVote', () => {
+    showPopup('Game Aborted', 'The game was ended by a unanimous vote.');
+    table.innerHTML = '';
+  });
 
   renameBtn.addEventListener('click', () => {
     const newName = prompt("Enter your name:");
@@ -191,11 +195,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   startBtn.addEventListener('click', () => {
     const diff = difficultySelect.value;
-    socket.emit('startGame', { difficulty: diff });
+    const lives = parseInt(livesSelect.value, 10);
+    socket.emit('startGame', { difficulty: diff, lives: lives });
   });
 
   readyBtn.addEventListener('click', () => {
     socket.emit('toggleReady');
+  });
+
+  abortBtn.addEventListener('click', () => {
+    socket.emit('voteToAbort');
   });
 
   socket.on('puzzle', puzzle => {
@@ -257,12 +266,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500);
   });
 
-  socket.on('mistake', ({ mistakes }) => {
-    showPopup('Incorrect Move!', `That was the wrong number. You now have ${mistakes}/3 mistakes.`);
+  socket.on('mistake', ({ mistakes, maxMistakes }) => {
+    showPopup('Incorrect Move!', `That was the wrong number. You now have ${mistakes}/${maxMistakes} mistakes.`);
   });
 
   socket.on('eliminated', () => {
-    showPopup('Eliminated!', 'You have made 3 mistakes and can no longer make moves.');
+    showPopup('Eliminated!', 'You have been eliminated and can no longer make moves.');
     const cells = table.querySelectorAll('td.editable');
     cells.forEach(cell => {
       cell.classList.remove('editable', 'selected');
@@ -281,61 +290,58 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on('scoreboard', (scores) => {
+    lastScores = scores; // Update the global scores variable
     scoreboard.innerHTML = '';
     scores.sort((a, b) => b.points - a.points);
-
+    const currentVoteCount = scores.filter(s => s.votedToAbort && s.isConnected).length;
     scores.forEach(s => {
       const li = document.createElement('li');
       li.className = 'p-2 rounded transition-colors duration-200';
       if (s.id === myId) li.classList.add('bg-blue-600');
       if (!s.isConnected && s.disconnectTimeLeft === null) li.classList.add('opacity-50');
-
       const playerInfoContainer = document.createElement('div');
       playerInfoContainer.className = 'flex items-center gap-2';
-      
       const dot = document.createElement('span');
       let dotColorClass = s.isConnected ? 'bg-green-500' : 'bg-gray-600';
       if (s.solved) dotColorClass = 'bg-yellow-400';
-      dot.className = `w-3 h-3 rounded-full flex-shrink-0`;
-      dot.classList.add(dotColorClass);
+      dot.className = `w-3 h-3 rounded-full flex-shrink-0 ${dotColorClass}`;
       playerInfoContainer.appendChild(dot);
-      
       const nameSpan = document.createElement('span');
       nameSpan.className = 'font-bold';
       nameSpan.textContent = s.name;
       playerInfoContainer.appendChild(nameSpan);
-
-      if (!isGameCurrentlyActive && s.isReady && s.isConnected) {
-        const readyCheck = document.createElement('span');
-        readyCheck.textContent = '✅';
-        playerInfoContainer.appendChild(readyCheck);
-      }
-      
       if (s.id === myId) {
-        readyBtn.textContent = s.isReady ? 'Ready' : 'Not Ready';
-        readyBtn.classList.toggle('ready-active', s.isReady);
-        readyBtn.classList.toggle('bg-gray-600', !s.isReady);
-        readyBtn.classList.toggle('hover:#ffdf2b', s.isReady);
-        readyBtn.classList.toggle('hover:#ffdf2b', !s.isReady);
+          readyBtn.textContent = s.isReady ? 'Ready' : 'Not Ready';
+          readyBtn.classList.toggle('ready-active', s.isReady);
+          abortBtn.textContent = s.votedToAbort ? 'Voted ✓' : 'Vote to Abort';
+          abortBtn.disabled = s.votedToAbort;
       }
-
       if (isGameCurrentlyActive) {
-        if (s.disconnectTimeLeft !== null) {
-          const timerSpan = document.createElement('span');
-          timerSpan.className = 'text-xs text-gray-400 font-mono';
-          timerSpan.textContent = `(${s.disconnectTimeLeft}s)`;
-          playerInfoContainer.appendChild(timerSpan);
-        }
+          if (s.votedToAbort) {
+              const voteIcon = document.createElement('span');
+              voteIcon.textContent = '[Abort ✔]';
+              playerInfoContainer.appendChild(voteIcon);
+          }
+          if (s.disconnectTimeLeft !== null) {
+              const timerSpan = document.createElement('span');
+              timerSpan.className = 'text-xs text-gray-400 font-mono';
+              timerSpan.textContent = `(${s.disconnectTimeLeft}s)`;
+              playerInfoContainer.appendChild(timerSpan);
+          }
+      } else {
+          if (s.isReady && s.isConnected) {
+              const readyCheck = document.createElement('span');
+              readyCheck.textContent = '✓';
+              playerInfoContainer.appendChild(readyCheck);
+          }
       }
-
       li.appendChild(playerInfoContainer);
-
       if (isGameCurrentlyActive) {
         if (s.isDisqualified) {
           playerInfoContainer.classList.add('line-through', 'text-red-400');
           const dqText = document.createElement('span');
           dqText.className = 'ml-auto text-sm';
-          dqText.textContent = 'Abandoned';
+          dqText.textContent = 'Disqualified';
           playerInfoContainer.appendChild(dqText);
         } else if (s.isEliminated) {
           playerInfoContainer.classList.add('line-through', 'text-gray-400');
@@ -352,9 +358,9 @@ document.addEventListener('DOMContentLoaded', () => {
           statsContainer.appendChild(pointsSpan);
           const mistakesContainer = document.createElement('div');
           mistakesContainer.className = 'flex items-center gap-1 text-red-500';
-           for (let i = 0; i < 3; i++) {
+           for (let i = 0; i < s.maxMistakes; i++) {
               const heart = document.createElement('span');
-              heart.innerHTML = i < (3 - s.mistakes) ? '❤️' : '';
+              heart.innerHTML = i < (s.maxMistakes - s.mistakes) ? '❤️' : '';
               mistakesContainer.appendChild(heart);
            }
           statsContainer.appendChild(mistakesContainer);
@@ -363,6 +369,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       scoreboard.appendChild(li);
     });
+    
+    const isMenuOpen = settingsPanel.classList.contains('open');
+    if (currentVoteCount > seenVoteCount && !isMenuOpen) {
+        menuNotificationDot.classList.remove('hidden');
+    }
   });
 
   const numberButtons = document.querySelectorAll('.number-btn');
