@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sudoku</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col md:flex-row">
+
+  <main class="flex-1 w-full flex flex-col items-center justify-center p-2 md:p-4">
+    <h1 class="text-3xl md:text-4xl font-bold mb-4 text-center">Sudoku</h1>
+    <div class="w-full max-w-lg p-1">
+      <table id="sudoku" class="w-full"></table>
+      <div id="game-timer" class="text-center text-2xl font-semibold mt-4 text-gray-300"></div>
+    </div>
+  </main>
+
+  <aside class="w-full md:w-96 bg-gray-800 p-4 flex flex-col gap-6 shadow-lg overflow-y-auto">
+    <div>
+      <button id="collapse-button" class="w-full flex justify-between items-center text-left">
+        <h2 class="text-2xl font-bold">Game Info</h2>
+        <svg id="collapse-icon" class="w-6 h-6 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+      </button>
+      <div id="collapse-content" class="collapse-content mt-3 space-y-3">
+        <div>
+          <label for="difficulty" class="font-semibold block mb-1">Difficulty:</label>
+          <select id="difficulty" class="w-full bg-gray-700 border border-gray-600 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <button id="startGame" class="w-full bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          Start Game
+        </button>
+        <button id="renameBtn" class="w-full bg-green-500 text-white px-4 py-2 rounded font-semibold hover:bg-green-600 transition-colors disabled:opacity-50">
+          Change Name
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col min-h-0">
+      <h2 class="text-2xl font-bold mb-2">Players</h2>
+      <ul id="scoreboard" class="space-y-2 text-sm overflow-y-auto pr-1"></ul>
+    </div>
+  </aside>
+
+  <div id="popup-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm text-center">
+      <h3 id="popup-title" class="text-xl font-bold mb-2">Notification</h3>
+      <p id="popup-message" class="text-gray-300 mb-4">This is a message.</p>
+      <button id="popup-close" class="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-600 transition-colors">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
+
