@@ -4,7 +4,11 @@ A real-time, competitive multiplayer Sudoku game where players race to solve the
 
 Desktop view:
 
+<img width="1348" height="632" alt="image" src="https://github.com/user-attachments/assets/ae466706-76b0-483e-9ca1-6540619616d0" />
+
+
 <img width="1345" height="628" alt="image" src="https://github.com/user-attachments/assets/22dcb402-9dc8-45de-9555-8934bd8b029e" />
+
 
 Mobile view:
 
