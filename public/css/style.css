@@ -1,56 +1,143 @@
-    body {
-      font-family: 'Inter', sans-serif;
-      color: #e5e7eb;
-    }
-    #sudoku {
-      border: 3px solid #cbd5e1;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
-      aspect-ratio: 1 / 1;
-    }
-    #sudoku td {
-      border: 1px solid #4a5568;
-      text-align: center;
-      vertical-align: middle;
-      color: white;
-      caret-color: white;
-      font-size: clamp(1rem, 4vw, 1.75rem);
-      font-weight: 500;
-      width: 11.111%;
-      height: 11.111%;
-      box-sizing: border-box;
-      transition: background-color 0.2s ease-in-out;
-    }
-    #sudoku td:nth-child(3n) { border-right: 2px solid #cbd5e1; }
-    #sudoku tr:nth-child(3n) { border-bottom: 2px solid #cbd5e1; }
-    #sudoku td:last-child { border-right: none; }
-    #sudoku tr:last-child td { border-bottom: none; }
-    #sudoku td.default {
-      color: #60a5fa;
-      font-weight: bold;
-    }
-    #sudoku td:focus {
-      outline: 3px solid #3b82f6;
-      background-color: #374151;
-    }
-    .editable { cursor: pointer; }
-    .correct { background-color: rgba(34, 197, 94, 0.2); }
-    .shake { animation: shake 0.5s; }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-6px); }
-      50% { transform: translateX(6px); }
-      75% { transform: translateX(-6px); }
-    }
-    .collapse-content {
-      max-height: 500px;
-      transition: max-height 0.4s ease-in-out, visibility 0.4s;
-      overflow: hidden;
-      visibility: visible;
-    }
-    .collapse-content.collapsed {
-      max-height: 0;
-      visibility: hidden;
-    }
-    #collapse-icon.rotated {
-      transform: rotate(180deg);
-    }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #e5e7eb;
+        }
+
+        #sudoku {
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            aspect-ratio: 1 / 1;
+            border-collapse: collapse;
+            border: 3px solid #cbd5e1;
+        }
+
+        #sudoku td {
+            width: 11.11%;
+            height: 11.11%;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid #4a5568;
+            font-size: clamp(1rem, 4.5vw, 1.75rem);
+            color: white;
+            caret-color: transparent;
+            position: relative;
+            cursor: pointer;
+        }
+
+        #sudoku td.default {
+            color: #60a5fa;
+            font-weight: bold;
+        }
+
+        #sudoku td:nth-child(3n) {
+            border-right: 3px solid #cbd5e1;
+        }
+
+        #sudoku tr:nth-child(3n) {
+            border-bottom: 3px solid #cbd5e1;
+        }
+
+        #sudoku td.selected {
+            outline: 2px solid #3b82f6;
+            background-color: #374151;
+        }
+
+        .shake {
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+
+            10%,
+            90% {
+                transform: translate3d(-1px, 0, 0);
+            }
+
+            20%,
+            80% {
+                transform: translate3d(2px, 0, 0);
+            }
+
+            30%,
+            50%,
+            70% {
+                transform: translate3d(-4px, 0, 0);
+            }
+
+            40%,
+            60% {
+                transform: translate3d(4px, 0, 0);
+            }
+        }
+
+        .collapsed {
+            max-height: 0;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin: 0 !important;
+            overflow: hidden;
+        }
+
+        .rotated {
+            transform: rotate(180deg);
+        }
+
+        .notes-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            pointer-events: none;
+        }
+
+        .note-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(0.4rem, 1.5vw, 0.75rem);
+            color: #9ca3af;
+        }
+
+        #notes-toggle-handle {
+            transform: translateX(2px);
+        }
+
+        #notes-toggle.active {
+            background-color: #16a34a;
+            box-shadow: 0 0 10px #16a34a;
+        }
+
+        #notes-toggle.active #notes-toggle-handle {
+            transform: translateX(22px);
+        }
+
+        #mobile-notes-btn.active {
+            background-color: #16a34a;
+            box-shadow: 0 0 10px #16a34a;
+        }
+
+        #readyBtn.ready-active {
+            background-color: #ffdf2b;
+            box-shadow: 0 0 10px #ffdf2b;
+        }
+
+        #settings-panel {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        #settings-panel.open {
+            transform: translateX(0);
+        }
+
+        @media (min-width: 768px) {
+            #settings-panel {
+                transform: translateX(0);
+            }
+        }
